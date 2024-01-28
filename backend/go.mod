@@ -1,4 +1,4 @@
-module github.com/ProlificLabs/captrivia
+module github.com/ProlificLabs/captrivia/backend
 
 go 1.21.4
 
