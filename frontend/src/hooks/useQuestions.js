@@ -25,7 +25,7 @@ const useQuestions = () => {
       };
       fetchQuestions();
     }
-  }, [gameSession, loading, questions]);
+  }, []);
 
   return {
     questions,
