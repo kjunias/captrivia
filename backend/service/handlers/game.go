@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/ProlificLabs/captrivia/backend/service"
@@ -22,6 +23,9 @@ func NewGameHandler(r *gin.Engine, gs *service.GameServer) *GameHandler {
 func (h *GameHandler) RegisterRoutes() {
 	h.router.POST("/game/start", h.handleStart)
 	h.router.POST("/game/end", h.handleEnd)
+	h.router.POST("/gameroom/create", h.handleCreateGameRoom)
+	h.router.GET("/gameroom/join", h.handleJoinGameRoom)
+	h.router.GET("/gameroom/update", h.handleUpdateGameRoom)
 }
 
 func (h *GameHandler) handleStart(c *gin.Context) {
@@ -45,4 +49,32 @@ func (h *GameHandler) handleEnd(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"finalScore": session.Score})
+}
+
+func (h *GameHandler) handleCreateGameRoom(c *gin.Context) {
+	fmt.Println("==> handleCreateGameRoom: ")
+	h.gameServer.CreateGameRoom(c)
+}
+
+func (h *GameHandler) handleJoinGameRoom(c *gin.Context) {
+	roomID, ok := c.GetQuery("roomID")
+	if !ok {
+		c.JSON(http.StatusNotFound, "Could not find game room")
+		return
+	}
+	fmt.Println("==> GameHandler handleJoinGameRoom 0: ", roomID)
+	h.gameServer.JoinGameRoom(roomID, c)
+	fmt.Println("==> GameHandler handleJoinGameRoom 1: ", roomID)
+}
+
+func (h *GameHandler) handleUpdateGameRoom(c *gin.Context) {
+	roomID, ok := c.GetQuery("roomID")
+	playerID, ok := c.GetQuery("playerID")
+	if !ok {
+		fmt.Println("==> handleUpdateGameRoom Error: ")
+		c.JSON(http.StatusNotFound, "Error handling update request")
+		return
+	}
+	fmt.Println("==> handleUpdateGameRoom 0:")
+	h.gameServer.SubscribeToGameRoom(roomID, playerID, c)
 }

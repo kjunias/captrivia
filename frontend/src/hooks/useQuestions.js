@@ -11,7 +11,6 @@ const useQuestions = () => {
 
   useEffect(() => {
     if (gameSession && !loading && questions.length <= 0) {
-      console.log("Getting questions!!");
       const fetchQuestions = async function () {
         setLoading(true);
         try {

@@ -3,11 +3,20 @@ import "./App.css";
 import Home from "./components/Home";
 import { GameContext, GameProvider } from "./contexts/GameContext";
 import QuestionContainer from "./components/Question";
+import GameRoom from "./components/GameRoom";
 
 function AppContainer() {
-  const { gameSession } = useContext(GameContext);
+  const { gameSession, gameRoom } = useContext(GameContext);
+  let screen = <Home/>;
+
+  if (gameRoom) {
+    screen = <GameRoom/>
+  } else if (gameSession) {
+    screen = <QuestionContainer/>
+  }
+  
   return (
-    <div className="App">{!gameSession ? <Home /> : <QuestionContainer />}</div>
+    <div className="App">{screen}</div>
   );
 }
 
