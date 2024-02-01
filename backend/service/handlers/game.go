@@ -26,6 +26,7 @@ func (h *GameHandler) RegisterRoutes() {
 	h.router.POST("/gameroom/create", h.handleCreateGameRoom)
 	h.router.GET("/gameroom/join", h.handleJoinGameRoom)
 	h.router.GET("/gameroom/update", h.handleUpdateGameRoom)
+	h.router.POST("/gameroom/start", h.handleStartGameRoom)
 }
 
 func (h *GameHandler) handleStart(c *gin.Context) {
@@ -52,7 +53,6 @@ func (h *GameHandler) handleEnd(c *gin.Context) {
 }
 
 func (h *GameHandler) handleCreateGameRoom(c *gin.Context) {
-	fmt.Println("==> handleCreateGameRoom: ")
 	h.gameServer.CreateGameRoom(c)
 }
 
@@ -63,7 +63,7 @@ func (h *GameHandler) handleJoinGameRoom(c *gin.Context) {
 		return
 	}
 	fmt.Println("==> GameHandler handleJoinGameRoom 0: ", roomID)
-	h.gameServer.JoinGameRoom(roomID, c)
+	h.gameServer.JoinGameRoom(roomID, c, false)
 	fmt.Println("==> GameHandler handleJoinGameRoom 1: ", roomID)
 }
 
@@ -77,4 +77,25 @@ func (h *GameHandler) handleUpdateGameRoom(c *gin.Context) {
 	}
 	fmt.Println("==> handleUpdateGameRoom 0:")
 	h.gameServer.SubscribeToGameRoom(roomID, playerID, c)
+}
+
+func (h *GameHandler) handleStartGameRoom(c *gin.Context) {
+	var startInfo struct {
+		RoomID            string `json:"roomID"`
+		NumberOfQuestions int    `json:"numberOfQuestions"`
+	}
+	fmt.Println("=====> handleStartGameRoom start")
+	if err := c.ShouldBindJSON(&startInfo); err != nil {
+		fmt.Println("=====> handleStartGameRoom start error 0")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+	if startInfo.NumberOfQuestions < 1 {
+		fmt.Println("=====> handleStartGameRoom start error 1")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid number of questions"})
+		return
+	}
+
+	h.gameServer.StartGameRoom(startInfo.RoomID, startInfo.NumberOfQuestions, c)
+
 }

@@ -1,10 +1,44 @@
-import { useContext } from "react";
+import { useContext, useEffect } from "react";
 import { GameContext } from "../contexts/GameContext";
 import { API_BASE } from "../config";
 
 const useGame = () => {
-  const {setError, setLoading, setGameSession, setGameRoom, setPlayerID} =
-    useContext(GameContext);
+  const {
+    setError,
+    loading,
+    setLoading,
+    setGameSession,
+    setGameRoom,
+    setPlayerID
+  } = useContext(GameContext);
+
+  useEffect(()=>{
+    const joinRoom = async() => {
+      if(window.location.pathname == "/join") {
+        setLoading(true);
+        setError(null);
+        try {
+          const roomID = window.location.search.split("roomID=")[1].substring(0, 6)
+          const res = await fetch(`${API_BASE}/gameroom/join?roomID=${roomID}`, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+          const data = await res.json();
+          setGameRoom(data);
+          setPlayerID(data.playerID);
+        } catch (err) {
+          setError("Failed to join game room");
+        } finally {
+          setLoading(false);
+        }  
+      }
+    }
+    if (!loading) {
+      joinRoom();
+    }
+  }, []);
 
   const startGame = async () => {
     setLoading(true);
@@ -35,7 +69,7 @@ const useGame = () => {
         },
       });
       const data = await res.json();
-      setGameRoom(data.roomID);
+      setGameRoom(data);
       setPlayerID(data.playerID);
     } catch (err) {
       setError("Failed to create game room");

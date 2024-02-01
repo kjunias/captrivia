@@ -1,12 +1,10 @@
 package handlers
 
 import (
-	"math/rand"
 	"net/http"
-	"time"
 
-	"github.com/ProlificLabs/captrivia/backend/model"
 	"github.com/ProlificLabs/captrivia/backend/service"
+	"github.com/ProlificLabs/captrivia/backend/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,16 +25,6 @@ func (h *QuestionsHandler) RegisterRoutes() {
 }
 
 func (h *QuestionsHandler) handle(c *gin.Context) {
-	shuffledQuestions := shuffleQuestions(h.gameServer.Questions)
+	shuffledQuestions := utils.ShuffleQuestions(h.gameServer.Questions)
 	c.JSON(http.StatusOK, shuffledQuestions[:10])
-}
-
-func shuffleQuestions(questions []model.Question) []model.Question {
-	rand.Seed(time.Now().UnixNano())
-	qs := make([]model.Question, len(questions))
-	copy(qs, questions)
-	rand.Shuffle(len(qs), func(i, j int) {
-		qs[i], qs[j] = qs[j], qs[i]
-	})
-	return qs
 }

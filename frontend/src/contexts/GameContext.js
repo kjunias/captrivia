@@ -6,6 +6,7 @@ export const GameProvider = ({ children }) => {
   const [playerID, setPlayerID] = useState(null);
   const [gameSession, setGameSession] = useState(null);
   const [gameRoom, setGameRoom] = useState(null);
+  const [updating, setUpdating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -18,6 +19,8 @@ export const GameProvider = ({ children }) => {
         setGameSession,
         gameRoom,
         setGameRoom,
+        updating,
+        setUpdating,
         loading,
         setLoading,
         error,
