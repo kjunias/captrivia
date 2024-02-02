@@ -2,7 +2,7 @@ import { createContext, useState } from "react";
 
 export const QuestionContext = createContext({});
 
-export const QuestionProvider = ({ children }) => {
+export const QuestionsProvider = ({ children }) => {
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);

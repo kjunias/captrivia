@@ -2,7 +2,7 @@ import React, { useContext } from "react";
 import "./App.css";
 import Home from "./components/Home";
 import { GameContext, GameProvider } from "./contexts/GameContext";
-import QuestionContainer from "./components/Question";
+import QuestionContainer from "./components/Questions";
 import GameRoom from "./components/GameRoom";
 
 function AppContainer() {

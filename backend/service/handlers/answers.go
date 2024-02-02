@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/ProlificLabs/captrivia/backend/service"
+	"github.com/ProlificLabs/captrivia/backend/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -58,10 +58,5 @@ func (h *AnswerHandler) handle(c *gin.Context) {
 }
 
 func (h *AnswerHandler) checkAnswer(questionID string, submittedAnswer int) (bool, error) {
-	for _, question := range h.gameServer.Questions {
-		if question.ID == questionID {
-			return question.CorrectIndex == submittedAnswer, nil
-		}
-	}
-	return false, errors.New("question not found")
+	return utils.CheckAnswer(h.gameServer.Questions, questionID, submittedAnswer)
 }

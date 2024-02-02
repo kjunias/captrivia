@@ -1,17 +1,7 @@
-import { useContext } from "react";
-import { GameContext } from "../contexts/GameContext";
-import { QuestionProvider } from "../contexts/QuestionContext";
-import useAnswers from "../hooks/useAnswers";
-import useQuestions from "../hooks/useQuestions";
-
-const Question = () => {
-  const { loading, error } = useContext(GameContext);
-  const { submitAnswer } = useAnswers();
-  const { questions, currentQuestionIndex, score } = useQuestions();
-
-  if (error) return <div className="error">Error: {error}</div>;
-  if (loading) return <div className="loading">Loading...</div>;
-
+const Question = ({questions, currentQuestionIndex, submitAnswer, score}) => {
+  if (!(questions && currentQuestionIndex)) {
+    return null
+  }
   return (
     <div>
       <h3>{questions[currentQuestionIndex]?.questionText}</h3>
@@ -29,11 +19,4 @@ const Question = () => {
   );
 };
 
-const QuestionContainer = () => {
-  return (
-    <QuestionProvider>
-      <Question />
-    </QuestionProvider>
-  );
-};
-export default QuestionContainer;
+export default Question;

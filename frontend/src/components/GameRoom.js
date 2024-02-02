@@ -1,25 +1,40 @@
 import useGameRoom from "../hooks/useGameRoom";
-import useWebSocket, { ReadyState } from "react-use-websocket"
+import Question from "./Question";
 
 const GameRoom = () => {
-  const {gameRoom, startGame, timeLeft, setNumberOfQuestions} = useGameRoom()
+  const {playerID, gameRoom, startGame, timeLeft, setNumberOfQuestions, submitAnswer} = useGameRoom()
 
   const handleChange = (event) => {
     event.preventDefault();
     setNumberOfQuestions(parseInt(event.target.value));
   };
 
-  const handleSubmit = (event) => {
+  const handleStartGame = (event) => {
     event.preventDefault();
     startGame();
   };
 
   const roomURL = `${window.location.origin}/join?roomID=${gameRoom?.roomID}`;
 
+  if(!gameRoom.isCountingDown) {
+    debugger;
+  }
+
+  if(!gameRoom.isCountingDown && gameRoom.questions && gameRoom.questions.length > 0 && gameRoom.currentQuestionIndex >= 0) {
+    return (
+      <Question
+        questions={gameRoom.questions}
+        currentQuestionIndex={gameRoom.currentQuestionIndex}
+        score={gameRoom.scores[playerID]}
+        submitAnswer={submitAnswer}
+      />
+    )
+  }
+
   return (
     <>
       <h3>Game Room: {gameRoom?.roomID}</h3>
-      {gameRoom?.isCountingDown && (<h3>Countdown: {timeLeft}</h3>)}
+      {gameRoom?.isCountingDown && (<h3>Countdown: {timeLeft/1000}</h3>)}
       <h4>Room URL: <a href={`${roomURL}`} target="_blank">{roomURL}</a></h4>
       <h4>PlayerID: {gameRoom?.playerID}</h4>
       {gameRoom?.playerID === gameRoom?.adminID && (
@@ -28,7 +43,7 @@ const GameRoom = () => {
           Number of Questions:
           <input type="number" name="questionsnumber" onChange={handleChange} />
         </label> 
-        <button onClick={handleSubmit}>Start Game</button>
+        <button onClick={handleStartGame}>Start Game</button>
       </form>)}
       <table>
         <thead>

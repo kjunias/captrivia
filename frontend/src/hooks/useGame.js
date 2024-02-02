@@ -1,6 +1,7 @@
-import { useContext, useEffect } from "react";
+import { useContext, useEffect, useState } from "react";
 import { GameContext } from "../contexts/GameContext";
-import { API_BASE } from "../config";
+import { API_BASE, WS_BASE } from "../config";
+import useWebSocket from "react-use-websocket";
 
 const useGame = () => {
   const {
@@ -69,14 +70,14 @@ const useGame = () => {
         },
       });
       const data = await res.json();
-      setGameRoom(data);
+      setGameRoom({...data, currentQuestionIndex: -1});
       setPlayerID(data.playerID);
     } catch (err) {
       setError("Failed to create game room");
     }
     setLoading(false);
   };
-  
+
   return {
     startGame,
     createRoom,

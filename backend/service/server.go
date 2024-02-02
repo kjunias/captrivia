@@ -1,29 +1,33 @@
 package service
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
+	"sync"
 
 	"github.com/ProlificLabs/captrivia/backend/model"
 	"github.com/ProlificLabs/captrivia/backend/session"
 	"github.com/ProlificLabs/captrivia/backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/olahol/melody"
 )
 
 type GameRoom struct {
-	RoomID          string
-	Channels        map[string]chan *gin.Context
-	Scores          map[string]int
-	AdminID         string
-	IsCountingDown  bool
-	CurrentQuestion int
-	Questions       []model.Question
+	RoomID               string
+	Scores               map[string]int
+	AdminID              string
+	IsCountingDown       bool
+	CurrentQuestionIndex int
+	Questions            []model.Question
+	mutex                sync.Mutex
 }
 type GameServer struct {
 	Questions []model.Question
 	Sessions  *session.SessionStore
 	GameRooms map[string]*GameRoom
+	Hub       *melody.Melody
 }
 
 func NewGameServer(questions []model.Question, store *session.SessionStore) *GameServer {
@@ -31,20 +35,20 @@ func NewGameServer(questions []model.Question, store *session.SessionStore) *Gam
 		Questions: questions,
 		Sessions:  store,
 		GameRooms: map[string]*GameRoom{},
+		Hub:       melody.New(),
 	}
 }
 
 func (s *GameServer) CreateGameRoom(c *gin.Context) {
-	fmt.Printf("\n\n ====CreateGameRoom %#v\n", "====")
 	roomID := utils.CreateID(6)
 	for _, ok := s.GameRooms[roomID]; ok; {
 		roomID = utils.CreateID(6)
 	}
 	s.GameRooms[roomID] = &GameRoom{
-		RoomID:   roomID,
-		Channels: map[string]chan *gin.Context{},
-		Scores:   map[string]int{},
+		RoomID: roomID,
+		Scores: map[string]int{},
 	}
+
 	s.JoinGameRoom(roomID, c, true)
 }
 
@@ -54,48 +58,72 @@ func (s *GameServer) JoinGameRoom(roomID string, c *gin.Context, isAdmin bool) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Game room not found"})
 		return
 	}
+
 	playerID := utils.CreateID(6)
-	fmt.Println("==> GameServe.JoinGameRoom playerID 0: ", playerID)
-	for _, ok := gameRoom.Channels[playerID]; ok; {
+	for _, ok := gameRoom.Scores[playerID]; ok; {
 		playerID = utils.CreateID(6)
 	}
-	fmt.Println("==> GameServe.JoinGameRoom playerID 1: ", playerID)
-	// fmt.Printf("\n\n ==> playerID: %#v\n", playerID)
-	fmt.Println("==> GameServe.JoinGameRoom: ")
 	if isAdmin {
 		gameRoom.AdminID = playerID
 	}
 	gameRoom.Scores[playerID] = 0
-	ch := make(chan *gin.Context, 1)
-	ch <- c
-	gameRoom.Channels[playerID] = ch
+	c.JSON(http.StatusOK, getGameRoomResponse(gameRoom, playerID))
 	s.publishUpdates(roomID)
 }
 
-func (s *GameServer) SubscribeToGameRoom(roomID string, playerID string, c *gin.Context) {
+func (s *GameServer) HandleStartCounter(roomID string, numberOfQuestions int) {
 	gameRoom := s.getGameRoom(roomID)
 	if gameRoom == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Game room not found"})
-		// c.Request.Context().Done()
+		fmt.Println("Error getting game room:", roomID)
 		return
 	}
-	playerChannel := gameRoom.getPlayerChannel(playerID)
-	playerChannel <- c
-	ok := false
-	for !ok {
-		select {
-		case playerChannel <- c:
-			ok = true
-		default:
-			fmt.Println("Channel full... flushing and retrying")
-			(<-playerChannel).Request.Context().Done()
-		}
+	gameRoom.IsCountingDown = true
+	gameRoom.CurrentQuestionIndex = -1
+	gameRoom.Questions = utils.ShuffleQuestions(s.Questions)[:numberOfQuestions]
+	s.publishUpdates(roomID)
+}
+
+func (s *GameServer) HandleEndCounter(roomID string) {
+	gameRoom := s.getGameRoom(roomID)
+	if gameRoom == nil {
+		fmt.Println("Error getting game room:", roomID)
+		return
 	}
-	fmt.Println("==> GameServer.SubscribeToGameRoom: ", roomID, playerID)
+	gameRoom.IsCountingDown = false
+	gameRoom.CurrentQuestionIndex = 0
+	s.publishUpdates(roomID)
+}
+
+func (s *GameServer) HandleSubmitAnswer(roomID string, playerID string, questionID string, submittedAnswer int) {
+	gameRoom := s.getGameRoom(roomID)
+	if gameRoom == nil {
+		fmt.Println("Error getting game room:", roomID)
+		return
+	}
+
+	gameRoom.mutex.Lock()
+	defer gameRoom.mutex.Unlock()
+	if questionID != gameRoom.Questions[gameRoom.CurrentQuestionIndex].ID {
+		return
+	}
+
+	correct, err := utils.CheckAnswer(gameRoom.Questions, questionID, submittedAnswer)
+	if err != nil {
+		fmt.Println("Error checking answer:", playerID, questionID)
+	}
+
+	if correct {
+		gameRoom.Scores[playerID] += 10
+		gameRoom.CurrentQuestionIndex += 1
+		s.publishUpdates(roomID)
+	}
+
+	if gameRoom.CurrentQuestionIndex >= len(gameRoom.Questions) {
+		delete(s.GameRooms, roomID)
+	}
 }
 
 func (s *GameServer) StartGameRoom(roomID string, numberOfQuestions int, c *gin.Context) {
-	fmt.Println("=====> GameServer.StartGameRoom start 1")
 	gameRoom := s.getGameRoom(roomID)
 	if gameRoom == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Game room not found"})
@@ -103,7 +131,6 @@ func (s *GameServer) StartGameRoom(roomID string, numberOfQuestions int, c *gin.
 	}
 	gameRoom.IsCountingDown = true
 	gameRoom.Questions = utils.ShuffleQuestions(s.Questions)[:numberOfQuestions]
-	fmt.Println("===> GameServe.StartGameRoom: ", gameRoom)
 	c.JSON(http.StatusOK, getGameRoomResponse(gameRoom, gameRoom.AdminID))
 	s.publishUpdates(roomID)
 }
@@ -118,23 +145,14 @@ func (s *GameServer) getGameRoom(roomID string) *GameRoom {
 	return gameRoom
 }
 
-func (r *GameRoom) getPlayerChannel(playerID string) chan *gin.Context {
-	var channel chan *gin.Context
-	var ok bool
-	if channel, ok = r.Channels[playerID]; !ok {
-		log.Fatal("Player channle not found")
-	}
-	return channel
-}
-
 type GameRoomResponse struct {
-	RoomID          string           `json:"roomID"`
-	Scores          map[string]int   `json:"scores"`
-	PlayerID        string           `json:"playerID"`
-	AdminID         string           `json:"adminID"`
-	IsCountingDown  bool             `json:"isCountingDown"`
-	CurrentQuestion int              `json:"currentQuestion"`
-	Questions       []model.Question `json:"questions"`
+	RoomID               string           `json:"roomID"`
+	Scores               map[string]int   `json:"scores"`
+	PlayerID             string           `json:"playerID,omitempty"`
+	AdminID              string           `json:"adminID"`
+	IsCountingDown       bool             `json:"isCountingDown"`
+	CurrentQuestionIndex int              `json:"currentQuestionIndex"`
+	Questions            []model.Question `json:"questions,omitempty"`
 }
 
 func (s *GameServer) publishUpdates(roomID string) {
@@ -143,33 +161,28 @@ func (s *GameServer) publishUpdates(roomID string) {
 		fmt.Println("Publishing error: Game room not found")
 		return
 	}
-	for id, c := range gameRoom.Channels {
-		fmt.Println("==> publishUpdates: ", id)
-		empty := false
-		for !empty {
-			select {
-			case ctx := <-c:
-				fmt.Println("===> publishing...: ", id)
-				ctx.JSON(http.StatusOK, getGameRoomResponse(gameRoom, id))
-				if ctx != nil && ctx.Writer != nil {
-					ctx.Writer.Flush()
-					ctx.Request.Context().Done()
-				}
-			default:
-				empty = true
-			}
-		}
+	msg := new(bytes.Buffer)
+	if err := json.NewEncoder(msg).Encode(getGameRoomMessage(gameRoom)); err != nil {
+		fmt.Println("Failed encoding message...: ", err)
+	}
+	if err := s.Hub.Broadcast(msg.Bytes()); err != nil {
+		fmt.Println("Failed broadcasting message...: ", err)
 	}
 }
 
 func getGameRoomResponse(gameRoom *GameRoom, playerID string) GameRoomResponse {
+	response := getGameRoomMessage(gameRoom)
+	response.PlayerID = playerID
+	return response
+}
+
+func getGameRoomMessage(gameRoom *GameRoom) GameRoomResponse {
 	return GameRoomResponse{
-		RoomID:          gameRoom.RoomID,
-		PlayerID:        playerID,
-		Scores:          gameRoom.Scores,
-		AdminID:         gameRoom.AdminID,
-		CurrentQuestion: gameRoom.CurrentQuestion,
-		Questions:       gameRoom.Questions,
-		IsCountingDown:  gameRoom.IsCountingDown,
+		RoomID:               gameRoom.RoomID,
+		Scores:               gameRoom.Scores,
+		AdminID:              gameRoom.AdminID,
+		CurrentQuestionIndex: gameRoom.CurrentQuestionIndex,
+		Questions:            gameRoom.Questions,
+		IsCountingDown:       gameRoom.IsCountingDown,
 	}
 }
