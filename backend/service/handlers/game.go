@@ -129,5 +129,4 @@ func (h *GameHandler) handleStartGameRoom(c *gin.Context) {
 	}
 
 	h.gameServer.StartGameRoom(startInfo.RoomID, startInfo.NumberOfQuestions, c)
-
 }

@@ -24,9 +24,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - type: bind
-        source: ./frontend
-        target: /app
+      - ./frontend/src:/app/src
       - type: volume
         source: node_modules
         target: /app/node_modules

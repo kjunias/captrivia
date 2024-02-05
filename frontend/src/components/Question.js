@@ -1,5 +1,5 @@
 const Question = ({questions, currentQuestionIndex, submitAnswer, score}) => {
-  if (!(questions && currentQuestionIndex)) {
+  if (!(questions && currentQuestionIndex >= 0)) {
     return null
   }
   return (

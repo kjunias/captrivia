@@ -1,7 +1,6 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect } from "react";
 import { GameContext } from "../contexts/GameContext";
-import { API_BASE, WS_BASE } from "../config";
-import useWebSocket from "react-use-websocket";
+import { API_BASE} from "../config";
 
 const useGame = () => {
   const {
@@ -14,6 +13,7 @@ const useGame = () => {
   } = useContext(GameContext);
 
   useEffect(()=>{
+    const controller = new AbortController();
     const joinRoom = async() => {
       if(window.location.pathname == "/join") {
         setLoading(true);
@@ -21,6 +21,7 @@ const useGame = () => {
         try {
           const roomID = window.location.search.split("roomID=")[1].substring(0, 6)
           const res = await fetch(`${API_BASE}/gameroom/join?roomID=${roomID}`, {
+            signal: controller.signal,
             method: "GET",
             headers: {
               "Content-Type": "application/json",
@@ -39,6 +40,7 @@ const useGame = () => {
     if (!loading) {
       joinRoom();
     }
+    return () => controller.abort()
   }, []);
 
   const startGame = async () => {

@@ -14,7 +14,6 @@ const Questions = () => {
   if (error) return <div className="error">Error: {error}</div>;
   if (loading) return <div className="loading">Loading...</div>;
 
-  debugger;
   return (
     <Question
       questions={questions}
