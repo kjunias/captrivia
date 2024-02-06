@@ -24,14 +24,12 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - type: bind
-        source: ./frontend
-        target: /app
+      - ./frontend/src:/app/src
       - type: volume
         source: node_modules
         target: /app/node_modules
     environment:
-      REACT_APP_BACKEND_URL: http://backend:8080
+      REACT_APP_BACKEND_URL: http://localhost:8080
     depends_on:
       - backend
 

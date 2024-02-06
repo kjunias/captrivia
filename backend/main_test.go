@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ProlificLabs/captrivia/backend/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -102,7 +103,7 @@ func TestFullGame(t *testing.T) {
 	}
 
 	// Decode JSON response to get the questions
-	var questions []Question
+	var questions []model.Question
 	err = json.NewDecoder(resp.Body).Decode(&questions)
 	if err != nil {
 		t.Fatalf("Failed to decode JSON response: %v", err)

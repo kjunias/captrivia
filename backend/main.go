@@ -2,64 +2,17 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
-	"net/http"
 	"os"
-	"sync"
-	"time"
 
+	"github.com/ProlificLabs/captrivia/backend/model"
+	"github.com/ProlificLabs/captrivia/backend/service"
+	"github.com/ProlificLabs/captrivia/backend/service/handlers"
+	"github.com/ProlificLabs/captrivia/backend/session"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
-
-type Question struct {
-	ID           string   `json:"id"`
-	QuestionText string   `json:"questionText"`
-	Options      []string `json:"options"`
-	CorrectIndex int      `json:"correctIndex"`
-}
-
-type PlayerSession struct {
-	Score int
-}
-
-type SessionStore struct {
-	sync.Mutex
-	Sessions map[string]*PlayerSession
-}
-
-func (store *SessionStore) CreateSession() string {
-	store.Lock()
-	defer store.Unlock()
-
-	uniqueSessionID := generateSessionID()
-	store.Sessions[uniqueSessionID] = &PlayerSession{Score: 0}
-
-	return uniqueSessionID
-}
-
-func (store *SessionStore) GetSession(sessionID string) (*PlayerSession, bool) {
-	store.Lock()
-	defer store.Unlock()
-
-	session, exists := store.Sessions[sessionID]
-	return session, exists
-}
-
-func generateSessionID() string {
-	randBytes := make([]byte, 16)
-	rand.Read(randBytes)
-	return fmt.Sprintf("%x", randBytes)
-}
-
-type GameServer struct {
-	Questions []Question
-	Sessions  *SessionStore
-}
 
 func main() {
 	// Setup the server
@@ -87,8 +40,8 @@ func setupServer() (*gin.Engine, error) {
 		return nil, err
 	}
 
-	sessions := &SessionStore{Sessions: make(map[string]*PlayerSession)}
-	server := NewGameServer(questions, sessions)
+	sessions := &session.SessionStore{Sessions: make(map[string]*model.PlayerSession)}
+	server := service.NewGameServer(questions, sessions)
 
 	// Create Gin router and setup routes
 	router := gin.Default()
@@ -99,108 +52,27 @@ func setupServer() (*gin.Engine, error) {
 	config.AllowAllOrigins = true
 	router.Use(cors.New(config))
 
-	router.POST("/game/start", server.StartGameHandler)
-	router.GET("/questions", server.QuestionsHandler)
-	router.POST("/answer", server.AnswerHandler)
-	router.POST("/game/end", server.EndGameHandler)
+	registerRoutes(router, server)
 
 	return router, nil
 }
 
-func NewGameServer(questions []Question, store *SessionStore) *GameServer {
-	return &GameServer{
-		Questions: questions,
-		Sessions:  store,
-	}
+func registerRoutes(router *gin.Engine, server *service.GameServer) {
+	gameHandler := handlers.NewGameHandler(router, server)
+	questionsHandler := handlers.NewQuestionsHandler(router, server)
+	answerHandler := handlers.NewAnswerHandler(router, server)
+	gameHandler.RegisterRoutes()
+	questionsHandler.RegisterRoutes()
+	answerHandler.RegisterRoutes()
 }
 
-func (gs *GameServer) StartGameHandler(c *gin.Context) {
-	sessionID := gs.Sessions.CreateSession()
-	c.JSON(http.StatusOK, gin.H{"sessionId": sessionID})
-}
-
-func (gs *GameServer) QuestionsHandler(c *gin.Context) {
-	shuffledQuestions := shuffleQuestions(gs.Questions)
-	c.JSON(http.StatusOK, shuffledQuestions[:10])
-}
-
-func (gs *GameServer) AnswerHandler(c *gin.Context) {
-	var submittedAnswer struct {
-		SessionID  string `json:"sessionId"`
-		QuestionID string `json:"questionId"`
-		Answer     int    `json:"answer"`
-	}
-	if err := c.ShouldBindJSON(&submittedAnswer); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
-		return
-	}
-
-	session, exists := gs.Sessions.GetSession(submittedAnswer.SessionID)
-	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
-		return
-	}
-
-	correct, err := gs.checkAnswer(submittedAnswer.QuestionID, submittedAnswer.Answer)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Question not found"})
-		return
-	}
-
-	if correct {
-		session.Score += 10 // Increment score for correct answer
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"correct":      correct,
-		"currentScore": session.Score, // Return the current score
-	})
-}
-
-func (gs *GameServer) EndGameHandler(c *gin.Context) {
-	var request struct {
-		SessionID string `json:"sessionId"`
-	}
-	if err := c.BindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	session, exists := gs.Sessions.GetSession(request.SessionID)
-	if !exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"finalScore": session.Score})
-}
-
-func (gs *GameServer) checkAnswer(questionID string, submittedAnswer int) (bool, error) {
-	for _, question := range gs.Questions {
-		if question.ID == questionID {
-			return question.CorrectIndex == submittedAnswer, nil
-		}
-	}
-	return false, errors.New("question not found")
-}
-
-func shuffleQuestions(questions []Question) []Question {
-	rand.Seed(time.Now().UnixNano())
-	qs := make([]Question, len(questions))
-	copy(qs, questions)
-	rand.Shuffle(len(qs), func(i, j int) {
-		qs[i], qs[j] = qs[j], qs[i]
-	})
-	return qs
-}
-
-func loadQuestions() ([]Question, error) {
+func loadQuestions() ([]model.Question, error) {
 	fileBytes, err := ioutil.ReadFile("questions.json")
 	if err != nil {
 		return nil, err
 	}
 
-	var questions []Question
+	var questions []model.Question
 	if err := json.Unmarshal(fileBytes, &questions); err != nil {
 		return nil, err
 	}
